@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Star, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Plus, Search, Star, Sparkles, X } from "lucide-react";
 import { useAiTools } from "../../hooks/useAiTools";
 import { useCompareAnalysis } from "../../hooks/useCompareAnalysis";
 import type { AITool } from "../../types/aiTool";
@@ -8,7 +8,7 @@ import type { AITool } from "../../types/aiTool";
 const MAX_COMPARE = 3;
 
 const Compare = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: aiTools, isLoading } = useAiTools();
   const analysis = useCompareAnalysis();
 
@@ -27,6 +27,7 @@ const Compare = () => {
   }, [searchParams]);
 
   const [selectedIds, setSelectedIds] = useState<string[]>(initialIds);
+  const [toolSearch, setToolSearch] = useState("");
 
   const selectedTools = useMemo(() => {
     if (!aiTools) return [];
@@ -36,9 +37,51 @@ const Compare = () => {
       .filter((tool): tool is AITool => Boolean(tool));
   }, [aiTools, selectedIds]);
 
-  const removeTool = (id: string) => {
-    setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
+
+  const searchableTools = useMemo(() => {
+    if (!aiTools) return [];
+
+    const keyword = toolSearch.trim().toLowerCase();
+    if (!keyword) return [];
+
+    return aiTools
+      .filter((tool: AITool) => !selectedIds.includes(tool.id))
+      .filter(
+        (tool: AITool) =>
+          tool.name.toLowerCase().includes(keyword) ||
+          tool.description.toLowerCase().includes(keyword) ||
+          tool.category.toLowerCase().includes(keyword) ||
+          tool.tags.some((tag) => tag.toLowerCase().includes(keyword))
+      )
+      .slice(0, 8);
+  }, [aiTools, selectedIds, toolSearch]);
+
+  const updateSelectedIds = (nextIds: string[]) => {
+    const uniqueIds = Array.from(new Set(nextIds)).slice(0, MAX_COMPARE);
+    setSelectedIds(uniqueIds);
     analysis.reset();
+
+    if (uniqueIds.length > 0) {
+      setSearchParams({ ids: uniqueIds.join(",") }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  };
+
+  const addTool = (id: string) => {
+    if (selectedIds.includes(id)) return;
+
+    if (selectedIds.length >= MAX_COMPARE) {
+      alert(`비교는 최대 ${MAX_COMPARE}개까지 선택할 수 있어요.`);
+      return;
+    }
+
+    updateSelectedIds([...selectedIds, id]);
+    setToolSearch("");
+  };
+
+  const removeTool = (id: string) => {
+    updateSelectedIds(selectedIds.filter((selectedId) => selectedId !== id));
   };
 
   if (isLoading) {
@@ -61,8 +104,58 @@ const Compare = () => {
 
       <h1 className="mt-5 text-4xl font-black text-slate-900">AI 툴 비교</h1>
       <p className="mt-3 text-slate-500">
-        사용 목적에 맞게 추천된 AI 툴을 최대 {MAX_COMPARE}개까지 비교할 수 있어요.
+        추천받은 AI를 그대로 비교하거나, 아래 검색창에서 직접 AI 툴을 찾아 최대 {MAX_COMPARE}개까지 비교할 수 있어요.
       </p>
+
+      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Search size={20} className="text-blue-600" />
+          <h2 className="text-lg font-bold text-slate-900">직접 AI 검색해서 추가</h2>
+        </div>
+        <p className="mt-1 text-sm text-slate-500">
+          추천 결과 외의 AI도 이름, 카테고리, 태그로 찾아 비교할 수 있어요.
+        </p>
+
+        <div className="relative mt-4">
+          <div className="flex items-center rounded-xl border border-slate-200 px-4 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+            <Search size={18} className="shrink-0 text-slate-400" />
+            <input
+              type="text"
+              value={toolSearch}
+              onChange={(event) => setToolSearch(event.target.value)}
+              placeholder="예: ChatGPT, 이미지 생성, 영상 편집"
+              className="w-full bg-transparent px-3 py-3 text-slate-700 outline-none placeholder:text-slate-400"
+            />
+          </div>
+
+          {toolSearch.trim() && (
+            <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+              {searchableTools.length > 0 ? (
+                searchableTools.map((tool) => (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => addTool(tool.id)}
+                    className="flex w-full items-center justify-between gap-4 rounded-lg px-4 py-3 text-left transition hover:bg-blue-50"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900">{tool.name}</p>
+                      <p className="mt-1 truncate text-sm text-slate-500">
+                        {tool.category} · {tool.description}
+                      </p>
+                    </div>
+                    <Plus size={18} className="shrink-0 text-blue-600" />
+                  </button>
+                ))
+              ) : (
+                <p className="px-4 py-5 text-center text-sm text-slate-400">
+                  추가할 수 있는 AI 툴을 찾지 못했어요.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
 
       {selectedTools.length > 0 && (
         <div className="mt-6 flex flex-wrap gap-2">
@@ -90,7 +183,7 @@ const Compare = () => {
             선택된 AI 툴이 없어요.
           </p>
           <p className="mt-2 text-sm text-slate-400">
-            먼저 하고 싶은 일을 입력하고 추천 결과에서 비교할 AI를 선택해주세요.
+            위 검색창에서 AI를 직접 추가하거나 추천 페이지에서 비교할 AI를 선택해주세요.
           </p>
           <Link
             to="/search"
@@ -104,7 +197,7 @@ const Compare = () => {
         <>
           {selectedTools.length === 1 && (
             <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700">
-              비교하려면 추천 페이지에서 AI 툴을 하나 이상 더 선택해주세요.
+              비교하려면 위 검색창이나 추천 페이지에서 AI 툴을 하나 이상 더 추가해주세요.
             </div>
           )}
 

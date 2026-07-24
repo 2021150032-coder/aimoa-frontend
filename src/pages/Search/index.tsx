@@ -8,21 +8,59 @@ import AIToolCard from "../../components/home/AIToolCard";
 import type { AITool } from "../../types/aiTool";
 import type { Workflow } from "../../types/workflow";
 
+type RecommendationData = NonNullable<ReturnType<typeof useRecommend>["data"]>;
+
+const LAST_QUERY_KEY = "aiCompass:lastQuery";
+const LAST_RECOMMENDATION_KEY = "aiCompass:lastRecommendation";
+
 const Search = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const initialQuery = searchParams.get("q") ?? "";
+  const initialQuery =
+    searchParams.get("q") ?? sessionStorage.getItem(LAST_QUERY_KEY) ?? "";
   const [query, setQuery] = useState(initialQuery);
   const [selectedCompareIds, setSelectedCompareIds] = useState<string[]>([]);
 
   const { data: aiTools, isLoading: toolsLoading } = useAiTools();
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
   const recommend = useRecommend();
+  const [savedRecommendation, setSavedRecommendation] =
+    useState<RecommendationData | null>(() => {
+      try {
+        const saved = sessionStorage.getItem(LAST_RECOMMENDATION_KEY);
+        return saved ? (JSON.parse(saved) as RecommendationData) : null;
+      } catch {
+        sessionStorage.removeItem(LAST_RECOMMENDATION_KEY);
+        return null;
+      }
+    });
+
+  const recommendationData = recommend.data ?? savedRecommendation;
+
+  const runRecommendation = (searchQuery: string) => {
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return;
+
+    recommend.mutate(trimmedQuery, {
+      onSuccess: (data) => {
+        setSavedRecommendation(data);
+        sessionStorage.setItem(LAST_QUERY_KEY, trimmedQuery);
+        sessionStorage.setItem(LAST_RECOMMENDATION_KEY, JSON.stringify(data));
+      },
+    });
+  };
 
   useEffect(() => {
-    if (initialQuery.trim()) {
-      recommend.mutate(initialQuery);
+    if (!initialQuery.trim()) return;
+
+    const savedQuery = sessionStorage.getItem(LAST_QUERY_KEY);
+    const hasMatchingSavedResult =
+      savedQuery === initialQuery && Boolean(savedRecommendation);
+
+    if (!hasMatchingSavedResult) {
+      runRecommendation(initialQuery);
     }
+    // URL 검색어가 바뀔 때만 새 추천을 요청합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
@@ -54,10 +92,16 @@ const Search = () => {
   }, [workflows, query]);
 
   const handleSearch = () => {
-    navigate(`/search?q=${encodeURIComponent(query)}`);
-    if (query.trim()) {
-      recommend.mutate(query);
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    const currentUrlQuery = searchParams.get("q") ?? "";
+    if (currentUrlQuery !== trimmedQuery) {
+      navigate(`/search?q=${encodeURIComponent(trimmedQuery)}`);
+      return;
     }
+
+    runRecommendation(trimmedQuery);
   };
 
 
@@ -127,18 +171,18 @@ const Search = () => {
         </div>
       )}
 
-      {recommend.isSuccess && recommend.data && (
+      {recommendationData && (
         <div className="mt-10 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-8">
           <div className="flex items-center gap-2 text-blue-700">
             <Sparkles size={20} />
             <h2 className="text-xl font-bold">AI 추천</h2>
           </div>
 
-          <p className="mt-3 text-slate-700">{recommend.data.summary}</p>
+          <p className="mt-3 text-slate-700">{recommendationData.summary}</p>
 
-          {recommend.data.recommendedTools.length > 0 && (
+          {recommendationData.recommendedTools.length > 0 && (
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {recommend.data.recommendedTools.map((rt) => {
+              {recommendationData.recommendedTools.map((rt) => {
                 const tool = findTool(rt.id);
                 return (
                   <div
@@ -189,7 +233,7 @@ const Search = () => {
             </div>
           )}
 
-          {recommend.data.recommendedTools.length >= 2 && (
+          {recommendationData.recommendedTools.length >= 2 && (
             <div className="mt-6 flex flex-col items-center gap-2">
               <button
                 type="button"
@@ -206,10 +250,10 @@ const Search = () => {
             </div>
           )}
 
-          {recommend.data.recommendedWorkflow && (
+          {recommendationData.recommendedWorkflow && (
             <div
               onClick={() =>
-                navigate(`/workflow/${recommend.data!.recommendedWorkflow!.id}`)
+                navigate(`/workflow/${recommendationData.recommendedWorkflow!.id}`)
               }
               className="mt-4 cursor-pointer rounded-xl border border-blue-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
             >
@@ -217,11 +261,11 @@ const Search = () => {
                 추천 워크플로우
               </span>
               <h3 className="mt-1 font-bold text-slate-900">
-                {findWorkflow(recommend.data.recommendedWorkflow.id)?.title ??
-                  recommend.data.recommendedWorkflow.title}
+                {findWorkflow(recommendationData.recommendedWorkflow.id)?.title ??
+                  recommendationData.recommendedWorkflow.title}
               </h3>
               <p className="mt-2 text-sm text-slate-500">
-                {recommend.data.recommendedWorkflow.reason}
+                {recommendationData.recommendedWorkflow.reason}
               </p>
             </div>
           )}
