@@ -1,6 +1,6 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { Search as SearchIcon, Sparkles } from "lucide-react";
+import { Check, GitCompareArrows, Search as SearchIcon, Sparkles } from "lucide-react";
 import { useAiTools } from "../../hooks/useAiTools";
 import { useWorkflows } from "../../hooks/useWorkflows";
 import { useRecommend } from "../../hooks/useRecommend";
@@ -13,6 +13,7 @@ const Search = () => {
   const navigate = useNavigate();
   const initialQuery = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(initialQuery);
+  const [selectedCompareIds, setSelectedCompareIds] = useState<string[]>([]);
 
   const { data: aiTools, isLoading: toolsLoading } = useAiTools();
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
@@ -57,6 +58,31 @@ const Search = () => {
     if (query.trim()) {
       recommend.mutate(query);
     }
+  };
+
+
+  const toggleCompare = (id: string) => {
+    setSelectedCompareIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((selectedId) => selectedId !== id);
+      }
+
+      if (prev.length >= 3) {
+        alert("비교는 최대 3개까지 선택할 수 있어요.");
+        return prev;
+      }
+
+      return [...prev, id];
+    });
+  };
+
+  const goToCompare = () => {
+    if (selectedCompareIds.length < 2) {
+      alert("비교할 AI 툴을 2개 이상 선택해주세요.");
+      return;
+    }
+
+    navigate(`/compare?ids=${selectedCompareIds.join(",")}`);
   };
 
   const findTool = (id: string) => aiTools?.find((t: AITool) => t.id === id);
@@ -117,18 +143,66 @@ const Search = () => {
                 return (
                   <div
                     key={rt.id}
-                    onClick={() => navigate(`/tool/${rt.id}`)}
-                    className="cursor-pointer rounded-xl border border-blue-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                    className={`rounded-xl border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
+                      selectedCompareIds.includes(rt.id)
+                        ? "border-blue-500 ring-2 ring-blue-100"
+                        : "border-blue-100"
+                    }`}
                   >
-                    <h3 className="font-bold text-slate-900">
-                      {tool?.name ?? rt.name}
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-500">
-                      {rt.reason}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/tool/${rt.id}`)}
+                      className="w-full text-left"
+                    >
+                      <h3 className="font-bold text-slate-900">
+                        {tool?.name ?? rt.name}
+                      </h3>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {rt.reason}
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleCompare(rt.id)}
+                      className={`mt-4 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                        selectedCompareIds.includes(rt.id)
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      }`}
+                    >
+                      {selectedCompareIds.includes(rt.id) ? (
+                        <>
+                          <Check size={16} />
+                          비교 선택됨
+                        </>
+                      ) : (
+                        <>
+                          <GitCompareArrows size={16} />
+                          비교에 추가
+                        </>
+                      )}
+                    </button>
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {recommend.data.recommendedTools.length >= 2 && (
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={goToCompare}
+                disabled={selectedCompareIds.length < 2}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                <GitCompareArrows size={18} />
+                선택한 AI 비교 ({selectedCompareIds.length})
+              </button>
+              <p className="text-xs text-slate-500">
+                추천 결과에서 2~3개의 AI 툴을 선택해주세요.
+              </p>
             </div>
           )}
 

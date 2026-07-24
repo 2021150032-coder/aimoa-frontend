@@ -32,34 +32,26 @@ export default function Header() {
           <NavLink to="/" className={navClass}>
             Home
           </NavLink>
-
           <NavLink to="/search" className={navClass}>
             Search
           </NavLink>
-
           <NavLink to="/compare" className={navClass}>
             Compare
           </NavLink>
         </nav>
 
-        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-5">
-          <NavLink
-            to="/login"
-            className="hidden text-lg text-slate-600 transition hover:text-blue-600 sm:block"
-          >
-            Login
-          </NavLink>
-
-          <button className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700 sm:gap-2 sm:px-5 sm:py-3 sm:text-base">
-            <Sparkles size={16} className="sm:hidden" />
-            <Sparkles size={18} className="hidden sm:block" />
-            <span className="hidden sm:inline">AI 추천받기</span>
-            <span className="sm:hidden">AI 추천</span>
-          </button>
-        </div>
+        {/* 로그인 기능이 완성되기 전에는 빈 Login 링크를 노출하지 않습니다. */}
+        <Link
+          to="/search"
+          className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700 sm:gap-2 sm:px-5 sm:py-3 sm:text-base"
+        >
+          <Sparkles size={16} className="sm:hidden" />
+          <Sparkles size={18} className="hidden sm:block" />
+          <span className="hidden sm:inline">AI 추천받기</span>
+          <span className="sm:hidden">AI 추천</span>
+        </Link>
       </div>
 
-      {/* 모바일 전용 하단 네비게이션 */}
       <nav className="flex items-center justify-around border-t border-slate-100 py-2 text-sm md:hidden">
         <NavLink to="/" className={navClass}>
           Home
@@ -69,9 +61,6 @@ export default function Header() {
         </NavLink>
         <NavLink to="/compare" className={navClass}>
           Compare
-        </NavLink>
-        <NavLink to="/login" className={navClass}>
-          Login
         </NavLink>
       </nav>
     </header>
